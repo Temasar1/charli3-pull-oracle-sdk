@@ -1,6 +1,7 @@
 """Oracle transaction builder leveraging comprehensive validation utilities."""
 
 import logging
+from datetime import datetime
 from copy import deepcopy
 from dataclasses import dataclass
 
@@ -127,10 +128,18 @@ class OracleTransactionBuilder:
                     f"  {node_vkh.to_primitive().hex()} ({len(node_vkh.payload)} bytes)"
                 )
 
+            print("\n=== [DIAGNOSTIC] ON-CHAIN SETTINGS ===")
+            print(f"Required Signatures: {settings_datum.required_node_signatures_count}")
+            print(f"Time Uncertainty Agg (ms): {settings_datum.time_uncertainty_aggregation}")
+            print(f"Aggregation Liveness (ms): {settings_datum.aggregation_liveness_period}")
+            print(f"IQR Multiplier: {settings_datum.iqr_fence_multiplier}")
+            print(f"Median Divergency: {settings_datum.median_divergency_factor}")
+            
             print("\nYour message nodes (in order they will be sent):")
             for i, vkh in enumerate(message.node_feeds_sorted_by_feed.keys(), 1):
                 feed_value = message.node_feeds_sorted_by_feed[vkh]
                 print(f"  {i}. {vkh.to_primitive().hex()} (feed={feed_value})")
+            
             script_utxo = await common.get_reference_script_utxo(
                 self.tx_manager.chain_query,
                 self.ref_script_config,
@@ -170,6 +179,21 @@ class OracleTransactionBuilder:
             account, agg_state = state_checks.find_account_pair(
                 utxos, self.policy_id, current_time
             )
+
+            print("\n=== [DIAGNOSTIC] CURRENT ACCOUNT STATE ===")
+            if hasattr(account.output.datum, "datum"):
+                ad = account.output.datum.datum
+                print(f"Last Update: {ad.last_update_time}")
+                print(f"Nodes in Reward Map: {len(ad.nodes_to_rewards)}")
+                for vkh, amt in ad.nodes_to_rewards.items():
+                    print(f"  - {vkh.to_primitive().hex()}: {amt}")
+
+            print("\n=== [DIAGNOSTIC] CURRENT AGG STATE ===")
+            if hasattr(agg_state.output.datum, "price_data"):
+                pd = agg_state.output.datum.price_data
+                print(f"Last Price: {pd.get_price}")
+                print(f"Last Update: {pd.get_creation_time}")
+                print(f"Last Expiry: {pd.get_expiration_time}")
 
             # Don't re-sort! message.node_feeds_sorted_by_feed is already correctly
             # sorted by (feed_value, VKH) from build_aggregate_message

@@ -49,8 +49,10 @@ class PlatformAuthScript:
         self.is_mock = is_mock
         self._multisig = self._create_multisig()
 
-    def _create_multisig(self) -> ScriptNofK:
+    def _create_multisig(self) -> NativeScript:
         """Create the multisig component."""
+        if self.config.threshold == 1 and len(self.config.signers) == 1:
+            return ScriptPubkey(self.config.signers[0])
         return ScriptNofK(
             self.config.threshold, [ScriptPubkey(pkh) for pkh in self.config.signers]
         )
@@ -105,6 +107,13 @@ class PlatformAuthScript:
                         return ScriptConfig(
                             signers=signers, threshold=inner_script.n, network=network
                         )
+                    # Support ScriptPubkey directly inside ScriptAll (common in TS)
+                    elif isinstance(inner_script, ScriptPubkey):
+                        return ScriptConfig(
+                            signers=[inner_script.key_hash],
+                            threshold=1,
+                            network=network,
+                        )
 
             elif isinstance(script, ScriptNofK):
                 signers = []
@@ -115,7 +124,13 @@ class PlatformAuthScript:
                     signers=signers, threshold=script.n, network=network
                 )
 
-            raise ValueError("Unsupported script structure")
+            # Support ScriptPubkey directly
+            elif isinstance(script, ScriptPubkey):
+                return ScriptConfig(
+                    signers=[script.key_hash], threshold=1, network=network
+                )
+
+            raise ValueError(f"Unsupported script structure: {type(script)}")
 
         except Exception as e:
             raise ValueError(f"Failed to deserialize script: {e}") from e

@@ -1,6 +1,7 @@
 """Transaction management utilities for building, signing and submitting transactions."""
 
 import logging
+from datetime import datetime
 from dataclasses import dataclass
 
 from pycardano import (
@@ -252,6 +253,14 @@ class TransactionManager:
                 builder.validity_start = validity_start
             if validity_end is not None:
                 builder.ttl = validity_end
+
+            # Human-readable diagnostic for validity window
+            if validity_start and validity_end:
+                start_dt = datetime.fromtimestamp(self.chain_query.config.network_config.slot_to_posix(validity_start) / 1000)
+                end_dt = datetime.fromtimestamp(self.chain_query.config.network_config.slot_to_posix(validity_end) / 1000)
+                print(f"\n=== [DIAGNOSTIC] TX VALIDITY SLOTS ===")
+                print(f"Start Slot: {validity_start} ({start_dt.strftime('%H:%M:%S')})")
+                print(f"TTL Slot:   {validity_end} ({end_dt.strftime('%H:%M:%S')})")
 
             # Build transaction components
             tx_body = builder.build(

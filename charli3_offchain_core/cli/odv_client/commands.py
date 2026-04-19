@@ -142,11 +142,17 @@ async def send(config: Path, wait: bool) -> None:
             result.transaction, [signing_key], wait_confirmation=wait
         )
 
+        tx_hash = result.transaction.id
         if tx_status == "confirmed":
-            # print_send_summary(result)  # Out of scope - uses old RewardTransport
             print_status(
                 "ODV Aggregation",
-                f"Completed successfully. TX: {result.transaction.id}",
+                f"Completed successfully. TX: {tx_hash}",
+                success=True,
+            )
+        elif tx_status == "submitted":
+            print_status(
+                "ODV Aggregation",
+                f"Transaction submitted (pending confirmation). TX: {tx_hash}",
                 success=True,
             )
         else:

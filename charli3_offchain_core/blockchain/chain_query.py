@@ -284,6 +284,59 @@ class ChainQuery:
         except Exception as e:
             raise UTxOQueryError(f"Unexpected error querying UTxOs: {e}") from e
 
+    async def get_utxo_by_ref(self, utxo_reference: TransactionInput) -> UTxO | None:
+        """Get a UTxO associated with a reference - transaction id and output index number.
+        Works with both Blockfrost and Kupo backends.
+
+        Args:
+            utxo_reference (TransactionInput): reference - transaction id and output index number.
+
+        Returns:
+            Optional[UTxO]: A UTxO.
+        """
+        if self.ogmios and isinstance(self.ogmios, KupoChainContextExtension):
+            try:
+                utxo = self.ogmios._utxo_by_ref_kupo(utxo_reference)
+                if utxo:
+                    return utxo
+            except Exception as e:
+                logger.warning(f"Failed to get UTxO from Kupo: {e}")
+
+        if self.blockfrost:
+            try:
+                # Blockfrost context in PyCardano has utxos method that can take tx_id:index
+                # But safer to use the api directly as context.utxos might filter by address
+                tx_id = str(utxo_reference.transaction_id)
+                index = utxo_reference.index
+                utxos_data = self.blockfrost.api.transaction_utxos(tx_id)
+                for output in utxos_data.outputs:
+                    if output.output_index == index:
+                        # Convert blockfrost output to PyCardano UTxO
+                        from pycardano import TransactionOutput, Value
+                        
+                        # Note: This is an approximation for reference script lookup
+                        # We just need enough to verify the script hash in common.py
+                        address = Address.from_primitive(output.address)
+                        amount = Value(coin=int(output.amount[0].quantity)) # Simplified
+                        
+                        script = None
+                        if output.inline_datum:
+                             # We don't necessarily need the datum for ref script verification
+                             pass
+                        
+                        if output.reference_script_hash:
+                            # Fetch the script if it's a reference script
+                             script = await self.get_plutus_script(ScriptHash(bytes.fromhex(output.reference_script_hash)))
+
+                        return UTxO(
+                            utxo_reference,
+                            TransactionOutput(address=address, amount=amount, script=script)
+                        )
+            except Exception as e:
+                logger.warning(f"Failed to get UTxO from Blockfrost: {e}")
+
+        return None
+
     async def get_or_create_collateral(
         self,
         address: Address,

@@ -1,544 +1,149 @@
 # ODV Multisig Charli3 Offchain Core
 
-Core off-chain infrastructure for Charli3's Oracle Data Verification (ODV) system with multisig capabilities. This package provides comprehensive tooling for oracle operations, contract interactions, and blockchain integration.
+> **Fork Notice:** This is a fork of the official [Charli3 Pull Oracle SDK](https://github.com/Charli3-Official/charli3-pull-oracle-sdk) by Charli3-Official. For the original project description, full documentation, and upstream releases, visit the [original repository README](https://github.com/Charli3-Official/charli3-pull-oracle-sdk#readme). This fork adapts the SDK to run with BlockFrost as the sole chain backend (no local Kupo/Ogmios required), adds an automated price-feed pull script for Cardano Preprod, and includes fixes for deterministic feed ordering and clock-skew alignment between the SDK and oracle nodes.
 
-## 🌟 Features
+## Automated Price Feed Updates (Auto-Pull)
 
-- **Oracle Data Verification (ODV)**
-  - Aggregation of oracle data
-  - Multi-signature validation
-  - Reward distribution management
-  - Oracle node operations
-  - Oracle lifecycle management (Multisig Support)
-    - Oracle pause
-    - Oracle resume
-    - Oracle removing
-- **Smart Contract Integration**
-  - Aiken blueprint parsing and handling
-  - Plutus script management
-  - Transaction building and validation
+This fork ships `scripts/auto_pull.sh` — a shell loop that pushes fresh Gold (XAU) and Silver (XAG) prices on-chain every 8 minutes using the ODV client flow.
 
-- **Blockchain Operations**
-  - Chain state queries through Blockfrost or Kupo/Ogmios
-  - Transaction validation and monitoring
-  - Reference script management
+### Prerequisites
 
-## 📦 Installation & Setup
+- Oracle node(s) running and accessible (e.g. `http://localhost:8000`, `http://localhost:8001`)
+- `pull_gold.yaml` and `pull_silver.yaml` configured at the project root (see examples below)
+- Poetry environment installed (`poetry install`)
 
-1. Clone the repository:
-```bash
-git clone https://github.com/Charli3-Official/charli3-pull-oracle-sdk
-cd charli3-pull-oracle-sdk
-```
+### Pull configuration files
 
-2. Install dependencies using Poetry:
-```bash
-poetry install
-```
+Create `pull_gold.yaml` and `pull_silver.yaml` at the project root. These are standard ODV client configs pointing to your running oracle nodes:
 
-3. Set up pre-commit hooks (recommended for development):
-```bash
-poetry run pre-commit install
-```
-
-## 🚀 Quick Start
-
-### Multisig Platform Auth NFT Mint
-
-#### Configure multisig settings in yaml:
-Reference: configuration file (e.g., `deploy-testnet.yaml`):
 ```yaml
-multisig:
-  # platform_addr: "addr_test1..."
-  threshold: 2  # Required signatures
-  parties:
-    - "wallet1_public_key_hash"
-    - "wallet2_public_key_hash"
-```
-
-#### Option 1. Single Signature Flow (threshold = 1)
-```bash
-# Complete flow in single command
-# - Builds transaction
-# - Signs with configured wallet
-# - Submits to network immediately
-# - Returns tx ID and policy ID
-charli3 platform token mint --config deploy-testnet.yaml
-```
-
-#### Option 2.  Multi-Signature Flow (threshold > 1)
-```bash
-# 1. First Wallet: Build and optionally sign
-# - Creates transaction
-# - Prompts to sign with current wallet
-# - Generates tx_platform_mint.json
-charli3 platform token mint --config deploy-testnet-wallet-1.yaml
-
-# 2. Second Wallet: Add signature
-# - Validates key hasn't signed
-# - Updates transaction file
-# - Shows signature progress
-charli3 platform token sign-tx --config deploy-testnet-wallet-2.yaml --tx-file tx_platform_mint.json
-
-# 3. Submit when all signatures collected
-# - Validates signature threshold
-# - Submits to network
-# - Returns tx ID and policy ID
-charli3 platform token submit-tx --config deploy-testnet-wallet-2.yaml --tx-file tx_platform_mint.json
-```
-
-
-### Basic Oracle Deployment
-
-1. Create a deployment configuration file (e.g., `deploy-testnet.yaml`):
-```yaml
+# pull_gold.yaml
 network:
   network: "testnet"
   blockfrost:
-    project_id: "your-project-id"
-  wallet:
-    mnemonic: "your 24 word mnemonic"
-    # OR use key files:
-    # payment_skey_path: "path/to/payment.skey"
-    # payment_vkey_path: "path/to/payment.vkey"
-    # stake_vkey_path: "path/to/stake.vkey"
+    project_id: "preprod<YOUR_BLOCKFROST_PROJECT_ID>"
 
-addresses:
-  admin_address: "addr_test..."  # Address for reference scripts
-  script_address: "addr_test..."     # Address for oracle UTxOs
-
-tokens:
-  platform_auth_policy: "hex_policy_id_for_platform_auth_nft"
-  reward_token_policy: "hex_policy_id_for_reward_token"
-  reward_token_name: "hex_asset_name_for_reward_token"
-
-  rate_token_policy: "hex_policy_id_for_rate_token"
-  rate_token_name: "hex_asset_name_for_rate_token"
-fees:
-  node_fee: 1000000      # 1 ADA
-  platform_fee: 500000   # 0.5 ADA
-
-timing:
-  pause_period: 3600000        # 1 hour in ms
-  reward_dismissing_period: 7200000  # 2 hours in ms
-  aggregation_liveness: 300000   # 5 minutes in ms
-  time_uncertainty_aggregation: 120000 # 2 minutes in ms
-  time_uncertainty_platform: 180000 # 3 minutes in ms
-  iqr_multiplier: 150           # 1.5x
-
-transport_count: 4  # Number of reward transport UTxOs
-blueprint_path: "artifacts/plutus.json"  # Path to Aiken blueprint
-
-nodes:
-  nodes:
-  - feed_vkh: 007df380aef26e44739db3f4fe67d8137446e630dab3df16d9fbddc5
-    payment_vkh: b296714efefe2d991bb7eb002b48b024d1a152691c6fe9e0f76511c5
-  - feed_vkh: 018ab1dd5f33ca2e0ae6ccb694ea379d841bf5f4d2d5756452a2117d
-    payment_vkh: e12ee69ac72fff83a39d690830595cf11ca5a2f0d2d69b3f859f8f43
-  - feed_vkh: e47c436dbd0d1f7642ce2f4a8e36c4facae2b8d9d4c3267380cb1f5f
-    payment_vkh: 13bc38b4b81d4b942fc61be4533a165d837db56bedaf1a991e90fcdf
-  - feed_vkh: db4d690afb9f75d0a4ce983b41349220f9d0b4ada424f3d625963f85
-    payment_vkh: aed02a7e20098dc1415f669a1816473650b295136ff0fc0f9a09be0c
-  required_signatures: 4
-```
-
-2. Deploy the oracle based on your platform auth NFT configuration:
-
-#### Option 1: Single-Signature Deployment (threshold = 1)
-```bash
-# Complete flow in single command when platform auth NFT only requires one signature
-charli3 oracle deploy --config deploy-testnet.yaml
-```
-
-#### Option 2: Multi-Signature Deployment (threshold > 1)
-```bash
-# 1. First Wallet: Build transaction
-# - Creates deployment transaction
-# - Generates tx_oracle_deploy.json
-charli3 oracle deploy --config deploy-testnet-wallet-1.yaml
-
-# 2. Additional Wallets: Add signatures
-# - Validates key hasn't signed
-# - Updates transaction file
-# - Shows signature progress
-charli3 oracle sign-tx --config deploy-testnet-wallet-2.yaml --tx-file tx_oracle_deploy.json
-
-# 3. Submit when signature threshold is met
-# - Validates all required signatures are present
-# - Submits deployment transaction to network
-# - Shows deployment status and script address
-charli3 oracle submit-tx --config deploy-testnet.yaml --tx-file tx_oracle_deploy.json
-```
-## Aggregate Transactions
-### Aggregate and Rewards Calculate
-
-1. Create transaction config (tx_config.yml):
-```yaml
-network:
-  network: "TESTNET"
-  ogmios_kupo:
-    ogmios_url: "ws://localhost:1337"
-    kupo_url: "http://localhost:1442"
-
-oracle_address: "addr_test1..."
-policy_id: "1234..."
-
-tokens:
-  reward_token_policy: "hex_policy_id_here"
-  reward_token_name: "hex_token_name_here"
-
-  rate_token_policy: "hex_policy_id_here"
-  rate_token_name: "hex_token_name_here"
+oracle_address: "addr_test1..."        # Script address holding C3RA/C3AS UTxOs
+policy_id: "<GOLD_ORACLE_POLICY_ID>"   # Policy ID minted at oracle deploy time
 
 wallet:
-  mnemonic: "your 24 word mnemonic"
-```
+  mnemonic: "your 24 word mnemonic phrase here"
+  # OR use key files:
+  # payment_skey_path: "keys/payment.skey"
 
-2. Prepare feed data (feeds.json):
-```json
-{
-  "node_feeds_sorted_by_feed": {
-    "007df380aef26e44739db3f4fe67d8137446e630dab3df16d9fbddc5": 1000,
-    "018ab1dd5f33ca2e0ae6ccb694ea379d841bf5f4d2d5756452a2117d": 1001,
-    "e47c436dbd0d1f7642ce2f4a8e36c4facae2b8d9d4c3267380cb1f5f": 1001
-  },
-  "node_feeds_count": 3,
-  "timestamp": 1734363765000
-}
-```
+odv_validity_length: 120000  # 2 minutes — must be <= time_uncertainty_aggregation on-chain
 
-3. Submit ODV transaction:
-```bash
-charli3 aggregate-tx odv-aggregate submit \
-  --config tx_config.yml \
-  --feeds-file feeds.json \
-  --node-keys-dir node_keys
-```
-
-4. Process rewards:
-```bash
-charli3 aggregate-tx rewards process \
-  --config tx_config.yml
-```
-
-### Simulation of Aggregate and Rewards Calculate
-
-For testing purposes:
-
-1. Create simulation config (sim_config.yml):
-```yaml
-# Include standard transaction config
-...
-
-simulation:
-  node_keys_dir: "node_keys"
-  base_feed: 100
-  variance: 0.02
-  wait_time: 60
-```
-
-2. Run simulation:
-```bash
-charli3 simulator run \
-  --config tx_config.yml
-```
-
-For detailed informations, see [Aggregate Transactions](docs/oracle_aggregate_tx_cli.md)
-
-### Simulation of ODV aggregation request-response client flow
-
-Configuration process is the same as for Transaction Configuration (tx_config.yml), see [Aggregate Transactions](docs/oracle_aggregate_tx_cli.md),
-but with these new fields added:
-
-1. Create odv-client config (tx_config.yml):
-
-```yaml
-# Include standard transaction config
-...
-
-# This is odv request validity window length, should be <= time_uncertainty_aggregation
-odv_validity_length: 180000 # milliseconds
-
-# Nodes network identifiers root url (or ip address) and public key converted to cbor hex
 nodes:
-  - root_url: "http://0.0.0.0:8000"
-    pub_key: "58203565c563de4e55714aa9e0280a8cd4a4271ef8c8a261955446cc7b830021aef8"
-  - root_url: "http://0.0.0.0:8001"
-    pub_key: "5820f5ca5b53826d2be8b5ab5505c15dd10a498e6d1eee540ded51d52eb7083979f3"
+  - root_url: "http://localhost:8000"   # Gold oracle node
+    pub_key: "<NODE_FEED_VKH_HEX>"      # 28-byte feed verification key hash (hex)
 
+reference_script:
+  address: "addr_test1..."              # Address where reference script UTxO lives
+  utxo_reference:
+    transaction_id: "<SCRIPT_UTXO_TX_HASH>"
+    output_index: 0
 ```
 
-2. Run client simulation:
+```yaml
+# pull_silver.yaml — same structure, different policy_id and node endpoint
+network:
+  network: "testnet"
+  blockfrost:
+    project_id: "preprod<YOUR_BLOCKFROST_PROJECT_ID>"
+
+oracle_address: "addr_test1..."
+policy_id: "<SILVER_ORACLE_POLICY_ID>"
+
+wallet:
+  mnemonic: "your 24 word mnemonic phrase here"
+
+odv_validity_length: 120000
+
+nodes:
+  - root_url: "http://localhost:8001"   # Silver oracle node
+    pub_key: "<NODE_FEED_VKH_HEX>"
+
+reference_script:
+  address: "addr_test1..."
+  utxo_reference:
+    transaction_id: "<SCRIPT_UTXO_TX_HASH>"
+    output_index: 0
+```
+
+### Running the auto-pull loop
 
 ```bash
-charli3 client send \
-  --config tx_config.yml
+# Start the loop (runs until killed — use screen/tmux for long-running sessions)
+bash scripts/auto_pull.sh
 ```
 
-This will send requests to the oracle nodes and complete odv flow in two steps:
+What the script does each cycle:
 
-1. Send odv message request, when nodes sign a message containing node feed and timestamp;
-2. Send odv tx request, when nodes sign transaction constructed with messages supplied on the first step.
+1. Calls `charli3 client send --config pull_gold.yaml --no-wait` — contacts the Gold node for a signed feed, builds the ODV transaction, collects node signatures, and submits to chain without waiting for confirmation.
+2. Waits 30 seconds for mempool propagation.
+3. Calls `charli3 client send --config pull_silver.yaml --no-wait` for Silver.
+4. Sleeps 8 minutes, then repeats.
 
-##  Governance Operations
-### Update Oracle Settings
+The `--no-wait` flag means the script does not block on-chain confirmation before proceeding. If you need confirmed-state guarantees between pulls, remove it.
 
-This transaction allows you to modify the following settings:
-
-1. **Aggregation Liveness Period**
-2. **Time Absolute Uncertainty**
-3. **IQR Fence Multiplier**
-4. **UTxO Size Safety Buffer**
-5. **Required Node Signature Count**
-
-Command: `charli3 oracle update-settings --config testnet.yaml`
-
-### Add Nodes
-
-The command compares the node list in the config file, and if any changes are detected (new nodes), it proceeds to add them. The built-in menu helps users identify the required validations.
-
-Command: `charli3 oracle add-nodes --config testnet.yaml`
-### Remove Nodes
-
-This command manages node removal from the contract configuration:
-
-1. Removes nodes listed in the config file from the contract's existing node list
-2. If nodes are found, they are removed from the configuration
-
-Payment handling differs based on the reward type:
-- For CNT rewards: Payments are sent to an escrow contract where operators must withdraw them and pay back the associated minimum UTxO
-- For ADA rewards: Payments are sent directly to the operators' payment verification keys
-
-Command: `charli3 oracle del-nodes --config testnet.yaml`
-
-### Oracle Scaling Operations
-
-You can adjust the Oracle Data Verification (ODV) capacity by scaling up (adding new UTxO pairs) or scaling down (removing unused UTxO pairs).
-
-#### Scale Up
-
-Increase ODV capacity by creating new pairs of RewardTransport and AggregationState UTxOs.
-
-Command:
-```bash
-charli3 oracle scale-up --config deploy-testnet.yaml --amount 2
-```
-
-#### Scale Down
-
-Decrease ODV capacity by removing empty UTxO pairs and burning tokens.
-
-Command:
-```bash
-charli3 oracle scale-down --config deploy-testnet.yaml --amount 2
-```
-**Note:** When scaling down, only empty transport UTxOs and empty/expired aggregation state UTxOs will be removed. The system will validate that there are enough eligible UTxOs before building the transaction.
-
-## Rewards Operations
-### Node Collect
-This command provides a guided process for Node Operators to withdraw their accumulated rewards.  Node Operators must provide their payment verification key hash (VKH) to authenticate and initiate the withdrawal. The tool then allows the selection of a  withdrawal address, either a derived enterprise address or a user-specified address. Finally, it constructs the necessary transaction to withdraw the rewards, supporting both ADA and any token as reward currencies.
-
-Command: `charli3 oracle node-collect --config testnet.yaml`
-
-### Platform Collect
-To withdraw accumulated rewards, platform operators must use this command to specify the destination address and confirm the withdrawal amount. The command then constructs and executes the withdrawal transaction after validating the safety buffer.
-
-Command: `charli3 oracle platform-collect --config testnet.yaml`
-
-### Dismiss Rewards (Platform)
-  This command collects all rewards from reward transport UTxOs once the dismissal period for rewards has been completed. Batching of multiple reward transport UTxOs is possible
-
-Command: `charli3 oracle dismiss-rewards --batch-size N --config testnet.yaml`
-
-### Oracle Pause
-
-#### Option 1: Single Signature Flow (threshold = 1)
-```bash
-# Complete flow in single command
-# - Builds pause transaction
-# - Signs with configured wallet
-# - Submits to network immediately
-charli3 oracle pause --config deploy-testnet.yaml
-```
-
-#### Option 2: Multi-Signature Flow (threshold > 1)
-```bash
-# 1. First Wallet: Build transaction
-# - Creates pause transaction
-# - Generates tx_oracle_pause.json
-charli3 oracle pause --config deploy-testnet-wallet-1.yaml
-
-# 2. Additional Wallets: Add signatures
-# - Validates key hasn't signed
-# - Updates transaction file
-# - Shows signature progress
-charli3 oracle sign-tx --config deploy-testnet-wallet-2.yaml --tx-file tx_oracle_pause.json
-
-# 3. Submit when signature threshold is met
-# - Validates all required signatures are present
-# - Submits pause transaction to network
-charli3 oracle submit-tx --config deploy-testnet.yaml --tx-file tx_oracle_pause.json
-```
-
-### Oracle Removing
-
-#### Option 1: Single Signature Flow (threshold = 1)
-```bash
-# Builds and submits a removal transaction to burn all associated NFTs or a specified number of pairs.
-# - For single signature (threshold = 1), signs and submits immediately.
-# - For multi-signature (threshold > 1), generates tx_oracle_remove.json for signing.
-#
-# Optional: Specify the number of AggState and Reward Transport NFT pairs to burn using [--pair-count <number_of_pairs>]
-charli3 oracle remove --config deploy-testnet.yaml [--pair-count <number_of_pairs>]
-```
-
-*Note: If `--pair-count` is omitted, all associated NFTs will be burned.*
-
-#### Option 2: Multi-Signature Flow (threshold > 1)
-```bash
-# 1. Additional Wallets: Add signatures
-# - Validates key hasn't signed
-# - Updates transaction file
-# - Shows signature progress
-charli3 oracle sign-tx --config deploy-testnet-wallet-2.yaml --tx-file tx_oracle_remove.json
-
-# 2. Submit when signature threshold is met
-# - Validates all required signatures are present
-# - Submits removal transaction to network
-charli3 oracle submit-tx --config deploy-testnet.yaml --tx-file tx_oracle_remove.json
-```
-
-### Oracle Resuming
-
-You can resume a paused oracle instance using the following commands:
-
-#### Option 1: Single Signature Flow (threshold = 1)
-```bash
-# Complete flow in single command
-# - Builds resume transaction
-# - Signs with configured wallet
-# - Submits to network immediately
-charli3 oracle resume --config deploy-testnet.yaml
-```
-
-#### Option 2: Multi-Signature Flow (threshold > 1)
-```bash
-# 1. First Wallet: Build transaction
-# - Creates resume transaction
-# - Generates tx_oracle_resume.json
-charli3 oracle resume --config deploy-testnet-wallet-1.yaml
-
-# 2. Additional Wallets: Add signatures
-# - Validates key hasn't signed
-# - Updates transaction file
-# - Shows signature progress
-charli3 oracle sign-tx --config deploy-testnet-wallet-2.yaml --tx-file tx_oracle_resume.json
-
-# 3. Submit when signature threshold is met
-# - Validates all required signatures are present
-# - Submits resume transaction to network
-charli3 oracle submit-tx --config deploy-testnet.yaml --tx-file tx_oracle_resume.json
-```
-
-### Reference Scripts Management
-
-Create reference scripts separately:
-```bash
-poetry run charli3 oracle create-reference-scripts \
-    --config deploy-testnet.yaml \
-    --manager \
-    --nft
-```
-
-## Reward Escrow contract management
-
-Managing reward script is easy, we only need to create a reference script for it.
-Locking rewards inside the escrow script is a part of delete-nodes tx, while spending the escrow script is a part of reward-collect for the nodes/platform.
-
-The following command will:
-
-- Lookup the existing reference script utxos;
-- Interactively create the reference script.
+### Running a single pull manually
 
 ```bash
-charli3 escrow create-reference-script --config deploy-testnet.yaml
+# Gold
+poetry run charli3 client send --config pull_gold.yaml
+
+# Silver
+poetry run charli3 client send --config pull_silver.yaml
 ```
 
-Configuration for this command builds on the previous oracle configuration (see [guide](#configuration-guide)) by reusing network, wallet and blueprint config.
-A new field `reference_script_addr` is added to configure which address is used for locking the reference script utxo.
+---
 
-## 📖 Documentation
+## Changes from Upstream
 
-### Configuration Guide
+The following changes were made to the [original Charli3 Pull Oracle SDK](https://github.com/Charli3-Official/charli3-pull-oracle-sdk) to make it work with BlockFrost as the sole chain backend and to fix correctness issues discovered during Preprod testing.
 
-The deployment configuration supports multiple options and backends:
+### `chain_query.py` — BlockFrost UTxO reference lookup + clock alignment
 
-1. **Network Configuration**
-   - Support for Mainnet and Testnet
-   - Choose between Blockfrost or Kupo/Ogmios backends
-   - Wallet configuration through mnemonic or key files
+**Added `get_utxo_by_ref()`:** The original SDK only had `get_utxo_by_ref_kupo()`, which requires a running Kupo indexer. A new unified `get_utxo_by_ref()` async method was added that tries Kupo first and falls back to the BlockFrost API, enabling reference script UTxO lookups without a local node.
 
-2. **Address Configuration**
-   - Reference address for storing reference scripts
-   - Script address for oracle UTxOs
+**`use_wall_clock: bool = False`:** Changed from `True`. When `True`, the SDK computes `validity_start` from the machine's wall clock, which can be ~30–60 seconds ahead of Cardano's chain time (the time oracle nodes use for their feed timestamps). This caused the node to reject feed requests with `TimestampError: Timestamp outside validity interval`. Setting this to `False` derives the current time from the latest chain slot, keeping the SDK and node clocks in sync.
 
-3. **Token Configuration**
-   - Platform authorization NFT policy ID
-   - Fee token specifications
-   - Configurable token names for oracle NFTs
+### `oracle/utils/common.py` — BlockFrost compatibility + deterministic feed ordering
 
-4. **Timing Parameters**
-   - Pause period length
-   - Reward dismissing period
-   - Aggregation liveness period
-   - Time uncertainty handling
-   - IQR fence multiplier for outlier detection
+**`get_reference_script_utxo`:** Changed `chain_query.get_utxo_by_ref_kupo(...)` to `await chain_query.get_utxo_by_ref(...)` so the reference script lookup works with BlockFrost.
 
-For detailed configuration options, see [Configuration Guide](docs/configuration.md).
+**`build_aggregate_message` sort key:** Changed from `key=lambda x: x[1]` (sort by feed value only) to `key=lambda x: (x[1], x[0].payload)` (sort by feed value, then VKH bytes as tie-breaker). The on-chain Aiken validator requires a fully deterministic ordering; when two nodes submit the same price the previous sort was non-deterministic and could cause script evaluation failures.
 
-### Deployment Process
+### `oracle/utils/rewards.py` — Reward distribution correctness
 
-The oracle deployment process consists of several steps:
+**`calculate_reward_distribution`:** Refactored from iterating the full allowed-nodes set (which added zero-reward entries for every node not submitting this round) to starting from a `deepcopy` of `in_distribution` and incrementing only nodes that passed IQR/divergency consensus. This matches on-chain accounting and avoids polluting the reward map with zero entries.
 
-1. **Reference Script Creation**
-   - Oracle manager script (reusable across deployments)
-   - NFT minting policy script (unique per deployment)
+### `oracle/aggregate/builder.py` — Redeemer fix + diagnostic output
 
-2. **Oracle Start Transaction**
-   - Mints oracle NFTs
-   - Creates initial UTxOs with proper datums
-   - Sets up reward transport system
+**Account redeemer fix:** Changed `Redeemer(OdvAggregateMsg.create_sorted(sorted_feeds))` to `Redeemer(OdvAggregate.create_sorted(sorted_feeds))`. `OdvAggregateMsg` (CONSTR_ID 1, no fields) does not have a `create_sorted` method; the account UTxO redeemer must be `OdvAggregate` (CONSTR_ID 0, carries the sorted feed map).
 
-3. **Post-Deployment Verification**
-   - Confirms UTxO creation
-   - Verifies NFT minting
-   - Validates script parameters
+**Diagnostic print blocks:** Added `=== [DIAGNOSTIC] ===` console output showing on-chain settings, current account/agg-state values, and node feed ordering at transaction build time. These aid debugging without requiring a full trace.
 
-For detailed deployment instructions, see [Deployment Guide](docs/deployment.md).
+### `platform/auth/token_script_builder.py` — Single-key native script support
 
-### Running Tests
+`_create_multisig` now returns a bare `ScriptPubkey` when `threshold == 1` and there is only one signer, instead of wrapping it in `ScriptNofK(1, [...])`. `get_script_config` was also extended to parse `ScriptPubkey` directly (both at the top level and nested inside `ScriptAll`), covering scripts produced by TypeScript tooling that omit the N-of-K wrapper for single signers.
 
-```bash
-poetry run pytest
-```
+### `cli/oracle.py` — Platform script local reconstruction
+
+Added `_get_platform_script_with_fallback()`: when the multisig config lists the parties locally, the platform native script is reconstructed in-process and its hash is verified against the configured platform address. This avoids an on-chain lookup that can fail when the script has not yet been revealed to the chain, while still falling back to the chain query if the local hash does not match.
+
+### New files
+
+| File | Purpose |
+|---|---|
+| `scripts/auto_pull.sh` | Shell loop that pushes Gold and Silver price feeds on-chain every 8 minutes |
+| `pull_gold.yaml` | ODV client config for the Gold (XAU) oracle on Preprod |
+| `pull_silver.yaml` | ODV client config for the Silver (XAG) oracle on Preprod |
+
+---
 
 ## License
 
-This repository is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
-
-### License Rationale
-
-Charli3 uses a combination of OSI-approved open-source licenses, primarily AGPL-3.0 and MIT, depending on the role of each repository within the ecosystem.
-Repositories that implement core or protocol-critical logic are licensed under AGPL-3.0 to ensure that improvements and modifications remain transparent and benefit the entire ecosystem, including node operators, developers, and token holders, while maintaining full OSI compliance. This may include both on-chain and select off-chain components where protocol logic and token usage are integral.
-
-Repositories focused on tooling, SDKs, and supporting components are typically licensed under the MIT License to promote broad adoption, flexibility, and ease of integration.
-
-AGPL-3.0 is applied where reciprocal openness is important to protect shared protocol infrastructure, while MIT is used where permissiveness and developer flexibility are the primary goals.
-
-Please refer to each repository’s [LICENSE](LICENSE) file for the specific terms that apply.
+This repository is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**, inherited from the upstream Charli3 Pull Oracle SDK. See the [LICENSE](LICENSE) file for the full terms.
 
 Full commercial licenses available upon request by contacting sales@charli3.io.
-
-## Official Deployments
-
-Charli3 maintains and supports only official deployments that use the $C3 token and unmodified protocol economics.

@@ -1,6 +1,7 @@
 """Reward calculation utilities for oracle operations."""
 
 import math
+from copy import deepcopy
 from fractions import Fraction
 
 from pycardano import Asset, AssetName, ScriptHash, UTxO, Value
@@ -88,12 +89,10 @@ def calculate_reward_distribution(
             median_divergency_factor,
         )
 
-        node_keys = set(nodes)
+        out_distribution = deepcopy(in_distribution)
 
-        for feed_vkh in node_keys:
-            reward = node_reward_price if feed_vkh in rewarded_feed_nodes else 0
-            in_amount = in_distribution.get(feed_vkh, 0)
-            out_distribution[feed_vkh] = in_amount + reward
+        for vkh in rewarded_feed_nodes:
+            out_distribution[vkh] = out_distribution.get(vkh, 0) + node_reward_price
 
         # Sort by VKH in ascending order before returning
         sorted_distribution = dict(

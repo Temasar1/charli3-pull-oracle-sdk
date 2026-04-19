@@ -107,7 +107,7 @@ async def get_reference_script_utxo(
                 ),
                 index=ref_script_config.utxo_reference.output_index,
             )
-            utxo = chain_query.get_utxo_by_ref_kupo(utxo_reference)
+            utxo = await chain_query.get_utxo_by_ref(utxo_reference)
             if utxo is None:
                 raise ValidationError(
                     f"No matching utxo found {ref_script_config.utxo_reference}"
@@ -153,15 +153,14 @@ def build_aggregate_message(
     feeds = {}
     for msg in nodes_messages:
         vkh = msg.verification_key.hash()
-        print(f"VKH length: {len(vkh.payload)} bytes (should be 28)")
+        feeds[vkh] = msg.message.feed
         print(f"VKH hex: {vkh.to_primitive().hex()}")
 
-        feeds[vkh] = msg.message.feed
-
-    # Sort ONLY by feed value (ascending order)
-    # VKH order does not matter - check_nodes_multisig handles unsorted VKHs
-
-    sorted_feeds = dict(sorted(feeds.items(), key=lambda x: x[1]))
+    # Sort by feed value (ascending) and then by VKH payload (ascending) as tie-breaker
+    # This deterministic ordering is required by the on-chain Aiken validator.
+    sorted_feeds = dict(
+        sorted(feeds.items(), key=lambda x: (x[1], x[0].payload))
+    )
     return AggregateMessage(node_feeds_sorted_by_feed=sorted_feeds)
 
 

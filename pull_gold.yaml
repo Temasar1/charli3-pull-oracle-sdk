@@ -1,0 +1,23 @@
+# Corrected Pull Configuration for Gold
+network:
+  network: "testnet"
+  blockfrost:
+    project_id: "preprodMQggHR4gEPIjPNEs1VGGYTeius33Bmc6"
+
+oracle_address: "addr_test1wr85y8c4gh7gdugdewhdrgfgjgcl3utxrqfpgk5j85kdv4svjyshw"
+policy_id: "63fb25158563dd7e45300fe997604f00579f14dacc3edc414e8d8755"
+
+wallet:
+  mnemonic: "vibrant north decade mean ensure turn universe cause neutral mad can next mutual tongue main bind lizard crumble order pole assault guilt physical cup"
+
+odv_validity_length: 120000 # 2 minutes (matches on-chain constraint)
+
+nodes:
+  - root_url: "http://localhost:8000"
+    pub_key: "639db51a8544327d7dcb53716d50d89132e0ddf112a75da110ac4b60"
+
+reference_script:
+  address: "addr_test1qrva62tmq406czwdvennztql7n38fa6n66t205ucsrds4h6t53h5sf345n569735xszw47zpk5nxaxfzcpuema20fdnst77hln"
+  utxo_reference:
+    transaction_id: "9745cc1e48a5f244225b15fb6b997592e9ada5bc51f2be5c08f9142a3d25adc7"
+    output_index: 0

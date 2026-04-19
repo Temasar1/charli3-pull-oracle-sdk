@@ -3,10 +3,13 @@
 import json
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import click
-from pycardano import Network
 
+if TYPE_CHECKING:
+    from charli3_offchain_core.blockchain.chain_query import ChainQuery
+    from charli3_offchain_core.platform.auth.token_finder import PlatformAuthFinder
 from charli3_offchain_core.cli.config.formatting import format_status_update
 from charli3_offchain_core.cli.config.reference_script import ReferenceScriptConfig
 from charli3_offchain_core.cli.governance import (
@@ -27,8 +30,14 @@ from charli3_offchain_core.cli.transaction import (
 )
 from charli3_offchain_core.constants.colors import CliColor
 from charli3_offchain_core.oracle.lifecycle.orchestrator import LifecycleOrchestrator
+from charli3_offchain_core.platform.auth.token_script_builder import (
+    PlatformAuthScript,
+    ScriptConfig,
+)
+from pycardano import Address, Network, VerificationKeyHash
 
 from ..constants.status import ProcessStatus
+from .config.deployment import DeploymentConfig
 from .config.formatting import (
     format_deployment_summary,
     oracle_success_callback,
@@ -43,6 +52,44 @@ from .config.utils import async_command
 from .setup import setup_management_from_config, setup_oracle_from_config
 
 logger = logging.getLogger(__name__)
+
+
+async def _get_platform_script_with_fallback(
+    platform_address: str | Address,
+    multi_sig_config: Any | None,
+    chain_query: "ChainQuery",
+    platform_auth_finder: "PlatformAuthFinder",
+) -> Any:
+    """Attempt to get platform script from local config first, then fall back to chain."""
+    if multi_sig_config and multi_sig_config.parties:
+        signer_vkhs = [
+            VerificationKeyHash.from_primitive(p) for p in multi_sig_config.parties
+        ]
+        script_config = ScriptConfig(
+            signers=signer_vkhs,
+            threshold=multi_sig_config.threshold,
+        )
+        local_script_builder = PlatformAuthScript(chain_query, script_config)
+        local_script = local_script_builder.build_spending_script()
+
+        # Verify that this local script matches the platform address in the config
+        addr_obj = Address.from_primitive(str(platform_address))
+        local_hash = local_script.hash().payload.hex()
+        actual_hash = addr_obj.payment_part.payload.hex()
+
+        if local_hash == actual_hash:
+            logger.info("Using platform script reconstructed from local configuration")
+            return local_script
+        else:
+            logger.warning(
+                "Platform configuration mismatch (local hash: %s, address hash: %s). "
+                "Falling back to on-chain lookup (which may fail if the script is not yet revealed).",
+                local_hash,
+                actual_hash,
+            )
+
+    # Fallback to chain lookup
+    return await platform_auth_finder.get_platform_script(str(platform_address))
 
 
 @click.group()
@@ -127,8 +174,11 @@ async def deploy(config: Path, output: Path | None) -> None:  # noqa
                 f"No UTxO found with platform auth NFT (policy: {deployment_config.tokens.platform_auth_policy})"
             )
 
-        platform_script = await platform_auth_finder.get_platform_script(
-            addresses.platform_address
+        platform_script = await _get_platform_script_with_fallback(
+            addresses.platform_address,
+            deployment_config.multi_sig,
+            chain_query,
+            platform_auth_finder,
         )
         platform_multisig_config = platform_auth_finder.get_script_config(
             platform_script
@@ -268,8 +318,11 @@ async def pause(config: Path, output: Path | None) -> None:
         if not platform_utxo:
             raise click.ClickException("No platform auth UTxO found")
 
-        platform_script = await platform_auth_finder.get_platform_script(
-            oracle_addresses.platform_address
+        platform_script = await _get_platform_script_with_fallback(
+            oracle_addresses.platform_address,
+            management_config.multi_sig,
+            chain_query,
+            platform_auth_finder,
         )
         platform_config = platform_auth_finder.get_script_config(platform_script)
 
@@ -353,8 +406,11 @@ async def resume(config: Path, output: Path | None) -> None:
         if not platform_utxo:
             raise click.ClickException("No platform auth UTxO found")
 
-        platform_script = await platform_auth_finder.get_platform_script(
-            oracle_addresses.platform_address
+        platform_script = await _get_platform_script_with_fallback(
+            oracle_addresses.platform_address,
+            management_config.multi_sig,
+            chain_query,
+            platform_auth_finder,
         )
         platform_config = platform_auth_finder.get_script_config(platform_script)
 
@@ -439,8 +495,11 @@ async def remove(config: Path, output: Path | None) -> None:
         if not platform_utxo:
             raise click.ClickException("No platform auth UTxO found")
 
-        platform_script = await platform_auth_finder.get_platform_script(
-            oracle_addresses.platform_address
+        platform_script = await _get_platform_script_with_fallback(
+            oracle_addresses.platform_address,
+            management_config.multi_sig,
+            chain_query,
+            platform_auth_finder,
         )
         platform_config = platform_auth_finder.get_script_config(platform_script)
 

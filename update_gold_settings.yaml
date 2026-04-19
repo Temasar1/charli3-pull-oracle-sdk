@@ -1,0 +1,52 @@
+# Final Management Config for Gold
+network:
+  network: "testnet"
+  blockfrost:
+    project_id: "preprodMQggHR4gEPIjPNEs1VGGYTeius33Bmc6"
+  wallet:
+    mnemonic: "vibrant north decade mean ensure turn universe cause neutral mad can next mutual tongue main bind lizard crumble order pole assault guilt physical cup"
+
+oracle_address: "addr_test1wr85y8c4gh7gdugdewhdrgfgjgcl3utxrqfpgk5j85kdv4svjyshw"
+
+tokens:
+  platform_auth_policy: "343ddfd2124571820118076f9b7ba00a4d31742c59b31a0789e86d5b"
+  oracle_policy: "63fb25158563dd7e45300fe997604f00579f14dacc3edc414e8d8755"
+  reward_token_policy: ""
+  reward_token_name: ""
+  rate_token_policy: ""
+  rate_token_name: ""
+
+multisig:
+  platform_addr: "addr_test1wpuqzsufu39ppekpvjesn2salunme4s70x4cxt7flwv4k0swapkzr"
+  threshold: 1
+  parties:
+    - f5e3d61ed63ae12d1e5fb33aa7c572469afaa2692f61d2cff419ee09
+
+nodes:
+  feed_vkh:
+    - 639db51a8544327d7dcb53716d50d89132e0ddf112a75da110ac4b60
+    - f44a82965bd613ae0c72fd0b4bb98cdb54e5611d18c42828f796be4f
+  required_signatures: 1
+
+fees:
+  node_fee: 1000000
+  platform_fee: 500000
+
+timing:
+  pause_period: 1800000
+  reward_dismissing_period: 3600000
+  aggregation_liveness: 600000
+  time_uncertainty_aggregation: 120000
+  time_uncertainty_platform: 180000
+  iqr_multiplier: 150
+  median_divergency_factor: 1000
+  utxo_size_safety_buffer: 7500000
+
+reference_script:
+  address: "addr_test1qrva62tmq406czwdvennztql7n38fa6n66t205ucsrds4h6t53h5sf345n569735xszw47zpk5nxaxfzcpuema20fdnst77hln"
+  utxo_reference:
+    transaction_id: "9745cc1e48a5f244225b15fb6b997592e9ada5bc51f2be5c08f9142a3d25adc7"
+    output_index: 0
+
+blueprint_path: "artifacts/testnet_plutus.json"
+apply_arguments_with_aiken: True
